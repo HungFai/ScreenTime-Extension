@@ -1,0 +1,21 @@
+{
+	"name": "Browser ScreenTime Monitor",
+	"version": "1.0",
+	"permissions": [
+		"activeTab",
+		"storage"
+	],
+
+	"description": "An Extension that keeps track of screen time usage in the browser",
+	"manifest_version": 3,
+
+	"action": {
+		"default_popup": "main.html"
+	},
+
+	"background": [
+		{
+			"service_worker": "background.js"
+		}
+	]
+}
