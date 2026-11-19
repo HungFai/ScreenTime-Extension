@@ -2,7 +2,7 @@
 	"name": "Browser ScreenTime Monitor",
 	"version": "1.0",
 	"permissions": [
-		"activeTab",
+		"tabs",
 		"storage"
 	],
 
