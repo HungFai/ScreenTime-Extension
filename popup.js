@@ -1,3 +1,4 @@
+import { initLocal, initSession, enqueue } from './background.js';
 /* 
     Functions
 */
@@ -10,11 +11,12 @@ async function displayWebsiteTimes() {
 
     let websites = await chrome.storage.local.get('webSiteTime');
     const webSiteTime = websites.webSiteTime || {};
+    console.log("webSiteTime:", webSiteTime);
 
     websiteListDiv.replaceChildren();
     websites = Object.entries(webSiteTime).sort((a, b) => b[1] - a[1]);
 
-    if (websites.length === 0) {
+    if (websites.length == 0) {
         websiteListDiv.innerHTML = '<h3 class="centeredTitle">No websites visited this week.</h3>';
     } else {
         for (const [domain, time] of websites) {
@@ -33,9 +35,9 @@ async function displayWebsiteTimes() {
             const min = Math.floor((time % 3600) / 60);
             const sec = time % 60;
             if (hr !== 0) {
-                timeElement.textContent = `${hr}hr ${min}m ${sec}s`
+                timeElement.textContent = `${hr}hr ${min}m`
             } else if (min !== 0) {
-                timeElement.textContent = `${min}m ${sec}s`
+                timeElement.textContent = `${min}m`
             } else {
                 timeElement.textContent = `${sec}s`;
             }
@@ -51,7 +53,8 @@ async function displayWebsiteTimes() {
  * Resets all the data stored in local and session storage
  */
 function fullReset() {
-    // place holder
+    enqueue(initLocal);
+    enqueue(initSession);
 }
 
 /* 

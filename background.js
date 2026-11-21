@@ -15,9 +15,9 @@ const SESSION_DEFAULTS = {
     tabTime: 0
 };
 
-let queue = Promise.resolve();
+export let queue = Promise.resolve();
 
-async function initLocal() {
+export async function initLocal() {
     const allVar = await chrome.storage.local.get(Object.keys(INIT_VARIABLES));
 
     const missingVar = {};
@@ -33,7 +33,7 @@ async function initLocal() {
     console.log("Initialized variables:", missingVar);
 }
 
-async function initSession() {
+export async function initSession() {
     await chrome.storage.session.set(SESSION_DEFAULTS);
     await chrome.storage.session.set({ sessionStartTime: Date.now() });
 
@@ -43,13 +43,13 @@ async function initSession() {
 }
 
 chrome.runtime.onInstalled.addListener(async() => {
-    await initLocal();
-    await initSession();
+    enqueue(initLocal);
+    enqueue(initSession);
 })
 
 // Runs everytime the browser starts up
 chrome.runtime.onStartup.addListener(() => {
-    enqueue(initSession());
+    enqueue(initSession);
 })
 
 /*
@@ -97,14 +97,13 @@ async function trackActiveTab() {
 async function startTracking(tabId, givenUrl = null) {
     try {
         const tab = await chrome.tabs.get(tabId);
+        const url = givenUrl || tab.url || tab.pendingUrl;
     } catch (error) {
         console.error("Error occurred while fetching tab:", error);
         return;
     }
 
-    const url = givenUrl || tab.url || tab.pendingUrl;
-    const domain = getDomain(url);
-    await chrome.storage.session.set({ currentTab: tabId, tabStartTime: Date.now(), currentDomain: domain });
+    await chrome.storage.session.set({ currentTab: tabId, tabStartTime: Date.now(), currentDomain: getDomain(url) });
 
 
 }
@@ -178,7 +177,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     if (!changeInfo.url) return;
 
     const sessionData = await chrome.storage.session.get(['currentTab', 'currentDomain']);
-    if (get(changeInfo.url) === sessionData.currentDomain) return;
+    if (getDomain(changeInfo.url) === sessionData.currentDomain) return;
 
     enqueue(async () => {
         if (sessionData.currentTab === tabId) {
@@ -194,12 +193,12 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
 chrome.windows.onFocusChanged.addListener((windowId) => {
     enqueue(async () => {
         await stopTracking();
-        if (windowId !== chrome.windows.WINDOW_ID_NONE) {
-            const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        if (windowId === chrome.windows.WINDOW_ID_NONE) return;
 
-            if (tab) {
-                await startTracking(tab.id, tab.url || tab.pendingUrl);
-            }
+        const currTab = await chrome.tabs.query({ active: true, windowId });
+
+        if (currTab) {
+            await startTracking(currTab.id, currTab.url || currTab.pendingUrl);
         }
     })
 })
@@ -222,7 +221,7 @@ async function checkAlarmState() {
 /**
 * Queue the events
 */
-function enqueue(task) {
+export function enqueue(task) {
     queue = queue
         .then(task)
         .catch((error) => console.error("Tracking error:", error));
