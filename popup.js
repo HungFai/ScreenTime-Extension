@@ -10,7 +10,7 @@ async function displayWebsiteTimes() {
 
     let websites = await chrome.storage.local.get('websiteTime');
     const webSiteTime = websites.websiteTime || {};
-    console.log("webSiteTime:", webSiteTime);
+    printWebsiteList();
 
     websiteListDiv.replaceChildren();
     websites = Object.entries(webSiteTime).sort((a, b) => b[1] - a[1]);
@@ -46,6 +46,18 @@ async function displayWebsiteTimes() {
             websiteListDiv.appendChild(websiteItem);
         }
     }
+}
+
+/**
+ * For debugging purposes
+ */
+async function printWebsiteList() {
+    let websites = await chrome.storage.local.get('websiteTime');
+    console.log("-----------Website List-----------");
+    for (const [website, time] of Object.entries(websites)) {
+        console.log(`${website}: ${time}`);
+    }
+    console.log("----------------------------------");
 }
 
 /**

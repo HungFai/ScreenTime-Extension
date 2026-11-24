@@ -39,6 +39,13 @@ body {
     
 }
 
+#websiteLists {
+    background-color: var(--background);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    inset: 0;
+    width: 100%;
+}
 .time {
     font-weight: bold;
     color: var(--text-primary);
@@ -50,6 +57,6 @@ body {
 }
 
 nav {
-    display: flex;
+    display: grid;
     width:100%;
 }

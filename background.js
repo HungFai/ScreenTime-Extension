@@ -47,7 +47,7 @@ async function initSession() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-    enqueue(initLocal);
+    enqueue(() => initLocal());
     enqueue(initSession);
 })
 
@@ -268,11 +268,10 @@ async function checkAlarmState() {
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'RESETDATA') {
-        enqueue(() => {
-            initLocal(true);
-            initSession();
-        }).then(() => sendResponse({ ok: true }))
-        return true;
+        enqueue(async () => {
+            await initLocal(true);
+            await initSession();
+        })
     }
 })
 
