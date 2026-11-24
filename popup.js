@@ -1,4 +1,3 @@
-import { initLocal, initSession, enqueue } from './background.js';
 /* 
     Functions
 */
@@ -9,8 +8,8 @@ import { initLocal, initSession, enqueue } from './background.js';
 async function displayWebsiteTimes() {
     const websiteListDiv = document.getElementById('websiteList');
 
-    let websites = await chrome.storage.local.get('webSiteTime');
-    const webSiteTime = websites.webSiteTime || {};
+    let websites = await chrome.storage.local.get('websiteTime');
+    const webSiteTime = websites.websiteTime || {};
     console.log("webSiteTime:", webSiteTime);
 
     websiteListDiv.replaceChildren();
@@ -31,9 +30,9 @@ async function displayWebsiteTimes() {
             const timeElement = document.createElement("span");
             timeElement.style.float = "right";
 
-            const hr = Math.floor(time / 3600);
-            const min = Math.floor((time % 3600) / 60);
-            const sec = time % 60;
+            const hr = Math.floor(Math.round(time) / 3600);
+            const min = Math.floor((Math.round(time) % 3600) / 60);
+            const sec = Math.round(time) % 60;
             if (hr !== 0) {
                 timeElement.textContent = `${hr}hr ${min}m`
             } else if (min !== 0) {
@@ -52,9 +51,8 @@ async function displayWebsiteTimes() {
 /**
  * Resets all the data stored in local and session storage
  */
-function fullReset() {
-    enqueue(initLocal);
-    enqueue(initSession);
+async function fullReset() {
+    await chrome.runtime.sendMessage({ type: 'RESETDATA' });
 }
 
 /* 
@@ -62,7 +60,7 @@ function fullReset() {
 */
 
 chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.webSiteTime) {
+    if (area === 'local' && changes.websiteTime) {
         displayWebsiteTimes();
     }
 })

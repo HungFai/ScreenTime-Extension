@@ -15,34 +15,38 @@ const SESSION_DEFAULTS = {
     tabTime: 0
 };
 
-export let queue = Promise.resolve();
+let queue = Promise.resolve();
+const CHECKPOINTNAME = "ScreenTimeAlarm";
 
-export async function initLocal() {
+async function initLocal(reset = false) {
     const allVar = await chrome.storage.local.get(Object.keys(INIT_VARIABLES));
 
     const missingVar = {};
 
-    for (const [key, value] of Object.entries(INIT_VARIABLES)) {
-        if (allVar[key] === undefined) {
-            missingVar[key] = value;
+    if (!reset) {
+        for (const [key, value] of Object.entries(INIT_VARIABLES)) {
+            if (allVar[key] === undefined) {
+                missingVar[key] = value;
+            }
         }
-    }
 
-    await chrome.storage.local.set(missingVar);
+        await chrome.storage.local.set(missingVar);
+    } else {
+        await chrome.storage.local.set(INIT_VARIABLES);
+    }
 
     console.log("Initialized variables:", missingVar);
 }
 
-export async function initSession() {
+async function initSession() {
     await chrome.storage.session.set(SESSION_DEFAULTS);
     await chrome.storage.session.set({ sessionStartTime: Date.now() });
 
     console.log("Initialized session variables:", SESSION_DEFAULTS);
-
     await trackActiveTab();
 }
 
-chrome.runtime.onInstalled.addListener(async() => {
+chrome.runtime.onInstalled.addListener(async () => {
     enqueue(initLocal);
     enqueue(initSession);
 })
@@ -73,7 +77,7 @@ function getDomain(url) {
         } else if (websiteUrl.hostname) {
             return websiteUrl.hostname;
         } else {
-            return null;
+            return websiteUrl.protocol;
         }
     } catch (error) {
         console.error("Error occurred while parsing URL:", error);
@@ -97,15 +101,16 @@ async function trackActiveTab() {
 async function startTracking(tabId, givenUrl = null) {
     try {
         const tab = await chrome.tabs.get(tabId);
+        const window = await chrome.windows.get(tab.windowId);
+        if (!window.focused) return;
+
         const url = givenUrl || tab.url || tab.pendingUrl;
+        await chrome.storage.session.set({ currentTab: tabId, tabStartTime: Date.now(), currentDomain: getDomain(url) });
+
     } catch (error) {
         console.error("Error occurred while fetching tab:", error);
         return;
     }
-
-    await chrome.storage.session.set({ currentTab: tabId, tabStartTime: Date.now(), currentDomain: getDomain(url) });
-
-
 }
 
 /**
@@ -115,7 +120,7 @@ async function stopTracking() {
     const sessionData = await chrome.storage.session.get(['currentTab', 'tabStartTime', 'tabTime', 'currentDomain', 'sessionTime']);
 
     if (sessionData.currentTab != null && sessionData.tabStartTime != null) {
-        sessionData.tabTime = Math.max(0, Math.floor((Date.now() - sessionData.tabStartTime) / 1000));
+        sessionData.tabTime = Math.max(0, (Date.now() - sessionData.tabStartTime) / 1000);
         sessionData.sessionTime += sessionData.tabTime;
 
         //Update totalDayTime, totalWeekTime, and websiteTime in local storage
@@ -152,8 +157,11 @@ chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
             return;
         }
 
-        await stopTracking();
-        await startTracking(tabId);
+        try {
+            await stopTracking();
+        } finally {
+            await startTracking(tabId);
+        }
     })
 })
 
@@ -173,16 +181,15 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 /**
  * User Navigating to a Different URL in the Same Tab
  */
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (!changeInfo.url) return;
 
-    const sessionData = await chrome.storage.session.get(['currentTab', 'currentDomain']);
-    if (getDomain(changeInfo.url) === sessionData.currentDomain) return;
-
     enqueue(async () => {
+        const sessionData = await chrome.storage.session.get(['currentTab', 'currentDomain']);
+        if (getDomain(changeInfo.url) === sessionData.currentDomain) return;
         if (sessionData.currentTab === tabId) {
             await stopTracking();
-            await startTracking(tabId);
+            await startTracking(tabId, changeInfo.url);
         }
     })
 })
@@ -195,7 +202,7 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
         await stopTracking();
         if (windowId === chrome.windows.WINDOW_ID_NONE) return;
 
-        const currTab = await chrome.tabs.query({ active: true, windowId });
+        const [currTab] = await chrome.tabs.query({ active: true, windowId });
 
         if (currTab) {
             await startTracking(currTab.id, currTab.url || currTab.pendingUrl);
@@ -204,27 +211,80 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
 })
 
 /**
- * Periodically update the session time in local storage every 5 seconds
+ * Tab being replaced, edge case according to claude
  */
+chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
+    enqueue(async () => {
+        const { currentTab } = await chrome.storage.session.get('currentTab');
+        if (currentTab === addedTabId) return;
+
+        let shouldTrack = currentTab === removedTabId;
+
+        // Determine if the tab is active and focused, if so, tract
+        if (!shouldTrack) {
+            try {
+                const tab = await chrome.tabs.get(addedTabId);
+                const window = await chrome.windows.get(tab.windowId);
+
+                shouldTrack = tab.active && window.focused;
+            } catch {
+                return; // cannot retrive, meaning tab/window gone
+            }
+        }
+
+        if (shouldTrack) {
+            await stopTracking();
+            await startTracking(addedTabId);
+        }
+    })
+})
+/**
+ * Periodically update the session time in local storage every 30 seconds
+ */
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name !== CHECKPOINTNAME) return;
+
+    enqueue(async () => {
+        const {currentTab} = await chrome.storage.session.get('currentTab');
+        if (currentTab == null) return;
+        await stopTracking();
+        await startTracking(currentTab);
+    })
+})
 
 /**
  * Checks if the alarm is there, if not, create one, ripped straight from API documentation
  */
 async function checkAlarmState() {
-    const alarm = await browser.alarms.get("my-alarm");
+    const alarm = await chrome.alarms.get(CHECKPOINTNAME);
 
     if (!alarm) {
-        await browser.alarms.create("my-alarm", { periodInMinutes: 1 });
+        await chrome.alarms.create(CHECKPOINTNAME, { periodInMinutes: 0.5 });
     }
 }
 
 /**
+ * Executes full reset when received message from popup.js
+ */
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'RESETDATA') {
+        enqueue(() => {
+            initLocal(true);
+            initSession();
+        }).then(() => sendResponse({ ok: true }))
+        return true;
+    }
+})
+
+/**
 * Queue the events
 */
-export function enqueue(task) {
+function enqueue(task) {
     queue = queue
         .then(task)
         .catch((error) => console.error("Tracking error:", error));
     return queue;
 }
 
+// Normal Code
+checkAlarmState().catch(console.error);
