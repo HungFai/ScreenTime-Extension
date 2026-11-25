@@ -112,7 +112,8 @@ async function startTracking(tabId, givenUrl = null) {
         await chrome.storage.session.set({ currentTab: tabId, tabStartTime: Date.now(), currentDomain: currDomain });
 
         // Last Tab
-        await chrome.storage.local.set({lastTab:currDomain});
+        await chrome.storage.local.set({ lastTab: currDomain });
+        console.log(`currDomain: ${currDomain}, localLastTab: ${await chrome.storage.local.get(lastTab)}`);
 
     } catch (error) {
         console.error("Error occurred while fetching tab:", error);
@@ -128,18 +129,18 @@ async function stopTracking() {
 
     if (sessionData.currentTab != null && sessionData.tabStartTime != null) {
         sessionData.tabTime = Math.max(0, (Date.now() - sessionData.tabStartTime) / 1000);
-        sessionData.sessionTime += sessionData.tabTime;
+        sessionData.sessionTime = (sessionData.sessionTime || 0) + sessionData.tabTime;
 
         //Update totalDayTime, totalWeekTime, and websiteTime in local storage
         const localData = await chrome.storage.local.get(['totalDayTime', 'totalWeekTime', 'websiteTime']);
         const websiteTime = localData.websiteTime || {};
-
+        
         if (sessionData.currentDomain) {
             websiteTime[sessionData.currentDomain] = (websiteTime[sessionData.currentDomain] || 0) + sessionData.tabTime;
         }
 
-        localData.totalDayTime += sessionData.tabTime;
-        localData.totalWeekTime += sessionData.tabTime;
+        localData.totalDayTime = (localData.totalDayTime || 0) + sessionData.tabTime;
+        localData.totalWeekTime = (localData.totalWeekTime || 0) + sessionData.tabTime;
         localData.websiteTime = websiteTime;
 
         // get the current tab's URL and update the websiteTime object
@@ -259,28 +260,38 @@ chrome.alarms.onAlarm.addListener((alarm) => {
             await startTracking(currentTab);
         
         } else if (alarm.name === DAILYALARM) {
-            await initSession();
-            await chrome.storage.local.set({ totalDayTime: 0 });
+            try {
+                await initSession();
+                await chrome.storage.local.set({ totalDayTime: 0 });
 
-            // Create alarm for tomorrow
-            const tomorrow = new Date();
+            } catch (error) {
+                console.error("Midnight time reset failed: ", error);
 
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            tomorrow.setHours(0, 0, 0, 0);
+            } finally {
+                // Create alarm for tomorrow
+                const tomorrow = new Date();
 
-            await chrome.alarms.create(DAILYALARM, { when: tomorrow.getTime() });
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(0, 0, 0, 0);
+
+                await chrome.alarms.create(DAILYALARM, { when: tomorrow.getTime() });
+            }
 
         } else if (alarm.name === WEEKLYALARM) {
-            const tempLastTabVar = (await chrome.storage.local.get('lastTab')).lastTab;
-            await initSession();
-            await initLocal(true);
+            try {
+                const tempLastTabVar = (await chrome.storage.local.get('lastTab')).lastTab;
+                await initSession();
+                await initLocal(true);
 
-            await chrome.storage.local.set({ lastTab: tempLastTabVar });
-
-            // Create alarm for the next week
-            await chrome.alarms.create(WEEKLYALARM, {
-                when: nextSunday()
-            });
+                await chrome.storage.local.set({ lastTab: tempLastTabVar });
+            } catch (error) {
+                console.error("Weekly reset failed:", error);
+            } finally {
+                // Create alarm for the next week
+                await chrome.alarms.create(WEEKLYALARM, {
+                    when: nextSunday()
+                });
+            }
         }
     })
 })
@@ -299,15 +310,20 @@ function nextSunday() {
 /**
  * Checks if the alarm is there, if not, create one, ripped straight from API documentation
  */
-async function checkAlarmState() {
-    const alarm = await chrome.alarms.get(CHECKPOINTNAME);
-    const dailyAlarm = await chrome.alarms.get(DAILYALARM);
-    const weeklyAlarm = await chrome.alarms.get(WEEKLYALARM);
+async function initAlarm() {
+    // Periodic Alarm
+    const checkpoint = await chrome.alarms.get(CHECKPOINTNAME);
 
-    if (!alarm) {
-        await chrome.alarms.create(CHECKPOINTNAME, { periodInMinutes: 0.5 });
+    if (!checkpoint || checkpoint.periodInMinutes !== 0.5) {
+        await chrome.alarms.create(CHECKPOINTNAME, {
+            periodInMinutes: 0.5
+        });
     }
-    if (!dailyAlarm) {
+
+    // Daily Alarm
+    const dailyAlarm = await chrome.alarms.get(DAILYALARM);
+
+    if (!dailyAlarm || dailyAlarm.periodInMinutes != null) {
         const tomorrow = new Date();
 
         tomorrow.setDate(tomorrow.getDate() + 1);
@@ -316,8 +332,13 @@ async function checkAlarmState() {
         await chrome.alarms.create(DAILYALARM, { when: tomorrow.getTime() });
     }
 
-    if (!weeklyAlarm) {
-        await chrome.alarms.create(WEEKLYALARM, { when: nextSunday() });
+    // Weekly Alarm
+    const weeklyAlarm = await chrome.alarms.get(WEEKLYALARM);
+
+    if (!weeklyAlarm || weeklyAlarm.periodInMinutes != null) {
+        await chrome.alarms.create(WEEKLYALARM, {
+            when: nextSunday()
+        });
     }
 }
 
@@ -344,4 +365,4 @@ function enqueue(task) {
 }
 
 // Normal Code
-checkAlarmState().catch(console.error);
+initAlarm().catch(console.error);

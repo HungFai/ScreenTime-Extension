@@ -57,6 +57,7 @@ async function printWebsiteList() {
     for (const [website, time] of Object.entries(websites)) {
         console.log(`${website}: ${convertTimeToFormat(time) }`);
     }
+    console.log(`Last Tab: ${(await chrome.storage.local.get(lastTab)).lastTab }`)
     console.log("----------------------------------");
 }
 
