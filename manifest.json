@@ -1,6 +1,6 @@
 {
 	"name": "Browser ScreenTime Monitor",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"permissions": [
 		"tabs",
 		"storage",
@@ -14,10 +14,7 @@
 		"default_popup": "main.html"
 	},
 
-	"background": [
-		{
-			"service_worker": "background.js",
-				"type": "module"
+	"background": {
+			"service_worker": "background.js"
 		}
-	]
 }

@@ -17,6 +17,8 @@ const SESSION_DEFAULTS = {
 
 let queue = Promise.resolve();
 const CHECKPOINTNAME = "ScreenTimeAlarm";
+const DAILYALARM = "DailyAlarm";
+const WEEKLYALARM = "WeeklyAlarm";
 
 async function initLocal(reset = false) {
     const allVar = await chrome.storage.local.get(Object.keys(INIT_VARIABLES));
@@ -39,6 +41,7 @@ async function initLocal(reset = false) {
 }
 
 async function initSession() {
+    await stopTracking();
     await chrome.storage.session.set(SESSION_DEFAULTS);
     await chrome.storage.session.set({ sessionStartTime: Date.now() });
 
@@ -105,7 +108,11 @@ async function startTracking(tabId, givenUrl = null) {
         if (!window.focused) return;
 
         const url = givenUrl || tab.url || tab.pendingUrl;
-        await chrome.storage.session.set({ currentTab: tabId, tabStartTime: Date.now(), currentDomain: getDomain(url) });
+        const currDomain = getDomain(url);
+        await chrome.storage.session.set({ currentTab: tabId, tabStartTime: Date.now(), currentDomain: currDomain });
+
+        // Last Tab
+        await chrome.storage.local.set({lastTab:currDomain});
 
     } catch (error) {
         console.error("Error occurred while fetching tab:", error);
@@ -240,26 +247,77 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
 })
 /**
  * Periodically update the session time in local storage every 30 seconds
+ * Reset total day time when midnight strikes
+ * Reset All data except for lastTab at Sunday 12:00am
  */
 chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name !== CHECKPOINTNAME) return;
-
     enqueue(async () => {
-        const {currentTab} = await chrome.storage.session.get('currentTab');
-        if (currentTab == null) return;
-        await stopTracking();
-        await startTracking(currentTab);
+        if (alarm.name === CHECKPOINTNAME) {
+            const { currentTab } = await chrome.storage.session.get('currentTab');
+            if (currentTab == null) return;
+            await stopTracking();
+            await startTracking(currentTab);
+        
+        } else if (alarm.name === DAILYALARM) {
+            await initSession();
+            await chrome.storage.local.set({ totalDayTime: 0 });
+
+            // Create alarm for tomorrow
+            const tomorrow = new Date();
+
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+
+            await chrome.alarms.create(DAILYALARM, { when: tomorrow.getTime() });
+
+        } else if (alarm.name === WEEKLYALARM) {
+            const tempLastTabVar = (await chrome.storage.local.get('lastTab')).lastTab;
+            await initSession();
+            await initLocal(true);
+
+            await chrome.storage.local.set({ lastTab: tempLastTabVar });
+
+            // Create alarm for the next week
+            await chrome.alarms.create(WEEKLYALARM, {
+                when: nextSunday()
+            });
+        }
     })
 })
+/**
+ * Get the start of the next week
+ */
+function nextSunday() {
+    const now = new Date();
+    const nextSunday = new Date(now);
 
+    nextSunday.setHours(0, 0, 0, 0);
+    nextSunday.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
+
+    return nextSunday.getTime();
+}
 /**
  * Checks if the alarm is there, if not, create one, ripped straight from API documentation
  */
 async function checkAlarmState() {
     const alarm = await chrome.alarms.get(CHECKPOINTNAME);
+    const dailyAlarm = await chrome.alarms.get(DAILYALARM);
+    const weeklyAlarm = await chrome.alarms.get(WEEKLYALARM);
 
     if (!alarm) {
         await chrome.alarms.create(CHECKPOINTNAME, { periodInMinutes: 0.5 });
+    }
+    if (!dailyAlarm) {
+        const tomorrow = new Date();
+
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+
+        await chrome.alarms.create(DAILYALARM, { when: tomorrow.getTime() });
+    }
+
+    if (!weeklyAlarm) {
+        await chrome.alarms.create(WEEKLYALARM, { when: nextSunday() });
     }
 }
 
@@ -269,8 +327,8 @@ async function checkAlarmState() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'RESETDATA') {
         enqueue(async () => {
-            await initLocal(true);
             await initSession();
+            await initLocal(true);
         })
     }
 })

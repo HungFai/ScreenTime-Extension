@@ -46,9 +46,10 @@ body {
     inset: 0;
     width: 100%;
 }
-.time {
+.info {
     font-weight: bold;
     color: var(--text-primary);
+    float: right;
 }
 
 .secondClassColor {
