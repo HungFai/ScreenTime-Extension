@@ -1,6 +1,6 @@
 {
 	"name": "Browser ScreenTime Monitor",
-	"version": "0.2.1",
+	"version": "1.0.0",
 	"permissions": [
 		"tabs",
 		"storage",

@@ -4,23 +4,24 @@
         <script src="popup.js" defer></script>
     </head>
     <body>
-        <nav id="header">
-            <h1 class="bigTitle" style="padding-bottom:20px;">Browser ScreenTime Monitor</h1>
-            <h3 class="secondClassColor">Total Screen Time Today: <span id="totalTime" class="info">0s</span></h3>
-            <h3 class="secondClassColor">Total Screen Time This Week: <span id="totalWeekTime" class="info">0s</span></h3>
-            <h3 class="secondClassColor">Last Tab Opened: <span id="lastTab" class="info">None</span></h3>
-        </nav>
+        <div id="mainContent">
+            <nav id="header">
+                <h1 class="bigTitle" style="padding-bottom:20px;">Browser ScreenTime Monitor</h1>
+                <h3 class="secondClassColor">Total Screen Time Today: <span id="totalTime" class="info">0s</span></h3>
+                <h3 class="secondClassColor">Total Screen Time This Week: <span id="totalWeekTime" class="info">0s</span></h3>
+                <!--<h3 class="secondClassColor">Last Tab Opened: <span id="lastTab" class="info">None</span></h3>-->
+            </nav>
 
-        <nav id="websiteLists">
-            <h3 class="bigTitle">Websites Visited:</h3>
+            <nav id="websiteLists">
+                <h3 class="bigTitle">Websites Visited:</h3>
 
-            <div id="websiteList">
-                <p class="centeredTitle"> Loading Websites...</p>
-            </div>
-        </nav>
-        <nav id="reset">
-            <button id="fullReset">Full Reset</button>
-        </nav>
+                <div id="websiteList">
+                    <p class="centeredTitle"> Loading Websites...</p>
+                </div>
+            </nav>
+            <nav id="reset">
+                <button id="fullReset">Full Reset</button>
+            </nav>
+        </div>
     </body>
 </html>
-<canvas width="450" height="1600"></canvas>

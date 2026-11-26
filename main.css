@@ -7,6 +7,7 @@
     --text-muted: #5f5f5f;
     --border-color: #9f9f9f;
     --border-subtle: #afafaf;
+    --filledProgressBar: #3BBDF5;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,16 +20,27 @@
         --text-muted: #6b6b6b;
         --border-color: #3e3e3e;
         --border-subtle: #2e2e2e;
+        --filledProgressBar: #3BBDF5;
     }
 }
 
-body {
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--midground);
+}
+
+#mainContent {
+    border: 2px solid var(--border-color);
+    border-radius: 15px;
     background-color: var(--background);
     color: var(--text-primary);
+    overflow: hidden;
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 10px;
-}
+    width: 450px;
+} 
 
 #header {
     background-color: var(--background);
@@ -42,6 +54,7 @@ body {
 #websiteLists {
     background-color: var(--background);
     padding-bottom: 10px;
+    margin-bottom: 10px;
     border-bottom: 1px solid var(--border-color);
     inset: 0;
     width: 100%;
@@ -60,4 +73,47 @@ body {
 nav {
     display: grid;
     width:100%;
+}
+
+.websiteEntry{
+    margin-bottom: 15px;
+}
+
+.indivWebsite{
+    display:flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 6px;
+}
+
+.websiteProgressBar{
+    width: 100%;
+    height: 5px;
+    background-color: var(--foreground);
+    border-radius:5px;
+    overflow:hidden;
+}
+
+.filledWebsiteProgressBar{
+    height:100%;
+    width:0%;
+    background-color: var(--filledProgressBar);
+}
+
+.websiteProgressBar:hover {
+    height: 10px;
+    transition: 0.1s ease-in 0.05s;
+}
+
+#fullReset {
+    border-radius:10px;
+    background-color: var(--border-color);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease-in 0.1s;
+}
+
+#fullReset:hover {
+    filter: brightness(85%);
+    transition:  0.1s ease-in 0.05s;
 }

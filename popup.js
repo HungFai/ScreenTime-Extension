@@ -16,19 +16,26 @@ async function displayInfo() {
     document.getElementById('totalTime').textContent = convertTimeToFormat(localData.totalDayTime);
     document.getElementById('totalWeekTime').textContent = convertTimeToFormat(localData.totalWeekTime);
 
-    // Last Tab
-    if (localData.lastTab !== null) {
-        document.getElementById('lastTab').textContent = localData.lastTab;
-    }
+    // Last Tab (Doesn't show lastTab for some unknown reason)
+    //if (localData.lastTab !== null) document.getElementById('lastTab').textContent = localData.lastTab;
 
     // Modifying the websites time lists
     websiteListDiv.replaceChildren();
     webSiteTime = await Object.entries(webSiteTime).sort((a, b) => b[1] - a[1]);
 
+    // Max website screen time
+    const maxWebsiteTime = Math.max(
+        1,
+        ...webSiteTime.map(([domain, time]) => Number(time) || 0)
+    );
+
     if (webSiteTime.length == 0) {
         websiteListDiv.innerHTML = '<h3 class="centeredTitle">No websites visited this week.</h3>';
     } else {
         for (const [domain, time] of webSiteTime) {
+            const websiteEntry = document.createElement('div');
+            websiteEntry.className = 'websiteEntry';
+
             const websiteItem = document.createElement('p');
             websiteItem.className = 'indivWebsite';
 
@@ -43,7 +50,22 @@ async function displayInfo() {
 
             websiteItem.append(domainElement, timeElement);
 
-            websiteListDiv.appendChild(websiteItem);
+            // Progress bar (background)
+            const progressBar = document.createElement('div');
+            progressBar.className = "websiteProgressBar";
+
+            // Progress bar (filled)
+            const filledProgressBar = document.createElement('div');
+            filledProgressBar.className = "filledWebsiteProgressBar";
+
+            const percentageFilled = (time / maxWebsiteTime) * 100;
+            filledProgressBar.style.width = `${percentageFilled}%`;
+
+            
+            progressBar.appendChild(filledProgressBar);
+            websiteEntry.append(websiteItem, progressBar);
+
+            websiteListDiv.append(websiteEntry);
         }
     }
 }
@@ -57,7 +79,9 @@ async function printWebsiteList() {
     for (const [website, time] of Object.entries(websites)) {
         console.log(`${website}: ${convertTimeToFormat(time) }`);
     }
-    console.log(`Last Tab: ${(await chrome.storage.local.get(lastTab)).lastTab }`)
+
+    const { lastTab } = await chrome.storage.local.get('lastTab');
+    console.log(`Last Tab: ${ lastTab }`)
     console.log("----------------------------------");
 }
 
@@ -97,8 +121,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
         displayInfo();
     }
 })
+document.getElementById('fullReset').addEventListener("click", function () {
+    fullReset();
+});
 
-document.getElementById("fullReset").addEventListener("click", function () { fullReset(); });
 /* 
     Actually running the codes omg
 */

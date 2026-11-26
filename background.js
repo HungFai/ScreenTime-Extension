@@ -52,6 +52,7 @@ async function initSession() {
 chrome.runtime.onInstalled.addListener(async () => {
     enqueue(() => initLocal());
     enqueue(initSession);
+    await initAlarm();
 })
 
 // Runs everytime the browser starts up
@@ -112,8 +113,7 @@ async function startTracking(tabId, givenUrl = null) {
         await chrome.storage.session.set({ currentTab: tabId, tabStartTime: Date.now(), currentDomain: currDomain });
 
         // Last Tab
-        await chrome.storage.local.set({ lastTab: currDomain });
-        console.log(`currDomain: ${currDomain}, localLastTab: ${await chrome.storage.local.get(lastTab)}`);
+        if (currDomain !== null) await chrome.storage.local.set({ lastTab: currDomain });
 
     } catch (error) {
         console.error("Error occurred while fetching tab:", error);
